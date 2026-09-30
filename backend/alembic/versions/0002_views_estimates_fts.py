@@ -23,30 +23,37 @@ FTS_EXPR = (
 
 
 def upgrade() -> None:
-    op.add_column("issues", sa.Column("estimate", sa.Integer(), nullable=True))
-    op.add_column("issues", sa.Column("last_due_reminder_on", sa.Date(), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
 
-    op.create_table(
-        "saved_views",
-        sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("owner_id", sa.Integer(),
-                  sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("name", sa.String(length=80), nullable=False),
-        sa.Column("project_id", sa.Integer(),
-                  sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=True),
-        sa.Column("filters", sa.JSON(), nullable=False),
-        sa.Column("is_shared", sa.Boolean(), nullable=False, server_default=sa.false()),
-        sa.Column("created_at", sa.DateTime(timezone=True),
-                  server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True),
-                  server_default=sa.func.now(), nullable=False),
-    )
-    op.create_index("ix_saved_views_owner_id", "saved_views", ["owner_id"])
-    op.create_index("ix_saved_views_project_id", "saved_views", ["project_id"])
+    issue_columns = {column["name"] for column in inspector.get_columns("issues")}
+    if "estimate" not in issue_columns:
+        op.add_column("issues", sa.Column("estimate", sa.Integer(), nullable=True))
+    if "last_due_reminder_on" not in issue_columns:
+        op.add_column("issues", sa.Column("last_due_reminder_on", sa.Date(), nullable=True))
+
+    if not inspector.has_table("saved_views"):
+        op.create_table(
+            "saved_views",
+            sa.Column("id", sa.Integer(), primary_key=True),
+            sa.Column("owner_id", sa.Integer(),
+                      sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+            sa.Column("name", sa.String(length=80), nullable=False),
+            sa.Column("project_id", sa.Integer(),
+                      sa.ForeignKey("projects.id", ondelete="CASCADE"), nullable=True),
+            sa.Column("filters", sa.JSON(), nullable=False),
+            sa.Column("is_shared", sa.Boolean(), nullable=False, server_default=sa.false()),
+            sa.Column("created_at", sa.DateTime(timezone=True),
+                      server_default=sa.func.now(), nullable=False),
+            sa.Column("updated_at", sa.DateTime(timezone=True),
+                      server_default=sa.func.now(), nullable=False),
+        )
+    op.execute("CREATE INDEX IF NOT EXISTS ix_saved_views_owner_id ON saved_views (owner_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_saved_views_project_id ON saved_views (project_id)")
 
     # Full-text search index (PostgreSQL only; SQLite falls back to ILIKE).
-    if op.get_bind().dialect.name == "postgresql":
-        op.execute(f"CREATE INDEX {FTS_INDEX} ON issues USING GIN ({FTS_EXPR})")
+    if bind.dialect.name == "postgresql":
+        op.execute(f"CREATE INDEX IF NOT EXISTS {FTS_INDEX} ON issues USING GIN ({FTS_EXPR})")
 
 
 def downgrade() -> None:
