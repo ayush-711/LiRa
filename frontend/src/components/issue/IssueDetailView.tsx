@@ -30,6 +30,7 @@ export function IssueDetailView({ issueKey, compact }: { issueKey: string; compa
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["issue", issueKey] });
+    qc.invalidateQueries({ queryKey: ["activity", issueKey] });
     qc.invalidateQueries({ queryKey: ["board"] });
     qc.invalidateQueries({ queryKey: ["issues"] });
     qc.invalidateQueries({ queryKey: ["my-issues"] });
