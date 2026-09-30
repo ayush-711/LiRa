@@ -21,6 +21,16 @@ import { MentionTextarea } from "@/components/issue/MentionTextarea";
 import { relativeTime, fullDate, formatBytes, cn } from "@/lib/utils";
 import { Paperclip, Plus, X, Link2, MessageSquare, ListTree, Trash2, Download } from "lucide-react";
 
+export function issueDetailInvalidateQueryKeys(issueKey: string) {
+  return [
+    ["issue", issueKey],
+    ["activity", issueKey],
+    ["board"],
+    ["issues"],
+    ["my-issues"],
+  ] as const;
+}
+
 export function IssueDetailView({ issueKey, compact }: { issueKey: string; compact?: boolean }) {
   const { data: issue, isLoading } = useIssue(issueKey);
   const { user } = useAuth();
@@ -29,10 +39,9 @@ export function IssueDetailView({ issueKey, compact }: { issueKey: string; compa
   const writable = canWrite(user);
 
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["issue", issueKey] });
-    qc.invalidateQueries({ queryKey: ["board"] });
-    qc.invalidateQueries({ queryKey: ["issues"] });
-    qc.invalidateQueries({ queryKey: ["my-issues"] });
+    issueDetailInvalidateQueryKeys(issueKey).forEach((queryKey) => {
+      qc.invalidateQueries({ queryKey: [...queryKey] });
+    });
   };
 
   async function patch(body: Record<string, unknown>) {
