@@ -1,0 +1,28 @@
+# LiRa reverse proxy.
+# In development APP_DOMAIN defaults to `localhost` (Caddy serves a local cert).
+# In production set APP_DOMAIN to your real hostname and Caddy obtains a
+# Let's Encrypt certificate automatically over HTTPS.
+
+{$APP_DOMAIN:localhost} {
+	encode gzip
+
+	# Security headers (HTTPS enforced by Caddy's automatic TLS)
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# Adjust CSP as needed once asset origins are finalized.
+		-Server
+	}
+
+	# API → backend
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# Everything else → Next.js frontend
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

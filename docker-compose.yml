@@ -1,0 +1,75 @@
+# LiRa — Docker Compose (development & small production)
+# Services: postgres, backend (FastAPI), frontend (Next.js), caddy (reverse proxy + TLS)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-lira}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lira_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-lira}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-lira} -d ${POSTGRES_DB:-lira}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # Not exposed to the host in production; uncomment for local DB access:
+    # ports:
+    #   - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - uploads:/data/uploads
+    # Runs migrations then starts the API (see backend/entrypoint.sh)
+    expose:
+      - "8000"
+    ports:
+      - "8000:8000"   # convenient in dev; remove in hardened production
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      - backend
+    expose:
+      - "3000"
+    ports:
+      - "3000:3000"   # convenient in dev; remove in hardened production
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:-localhost}
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:
